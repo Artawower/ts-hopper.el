@@ -134,7 +134,6 @@ passed into function for finding node."
 (defun ts-hopper--hop (&optional node)
   "Just hope to treesit NODE.
 This function is called hook `ts-hope--after-hoped'."
-  ;; (message "hop node: %s" (treesit-node-type node))
   (if (not node)
       (message "No next node")
     (setq-local ts-hopper--last-hope-node node)
@@ -161,8 +160,7 @@ This function is called hook `ts-hope--after-hoped'."
   (interactive)
   (let* ((context (completing-read "Context: " ts-hopper--available-rule-names))
          (context (intern context)))
-    (setq-local ts-hopper--hop-context context)
-    (message "Context set to %s" context)))
+    (setq-local ts-hopper--hop-context context)))
 
 ;;;###autoload
 (defun ts-hopper-init ()
@@ -171,8 +169,6 @@ This function is called hook `ts-hope--after-hoped'."
   (dolist (item ts-hopper-mode-hops-rules)
     (dolist (rule (symbol-value (cdr item)))
       (let ((rule-name (car rule)))
-        ;; (message "rule: %s|%s" rule-name (type-of rule-name))
-        ;; (ts-hopper--define-hop-functions rule-name)
 
         (add-to-list 'ts-hopper--available-rule-names rule-name)
 
@@ -206,12 +202,35 @@ This function is called hook `ts-hope--after-hoped'."
     (ts-hopper--hop target-node)))
 
 
-(defun ts-hopper--mark-node ()
+(defun ts-hopper--mark-full-node ()
   "Mark current active node."
   (interactive)
   (push-mark (treesit-node-end ts-hopper--last-hope-node) nil t)
   (goto-char (treesit-node-start ts-hopper--last-hope-node))
   (ts-hopper-mode -1))
+
+(defun ts-hopper--mark-node-content ()
+  "Mark current active node content."
+  (interactive)
+  (let* ((mode-rules (symbol-value
+                      (alist-get major-mode ts-hopper-mode-hops-rules)))
+         (editable-types (cdr (assoc 'edit mode-rules)))
+         (node-for-mark (when (member
+                               (treesit-node-type ts-hopper--last-hope-node)
+                               editable-types)
+                          ts-hopper--last-hope-node))
+         (node-for-mark (or node-for-mark
+                            (treesit-search-subtree ts-hopper--last-hope-node
+                                                    (lambda (node)
+                                                      (member (treesit-node-type node)
+                                                              editable-types))))))
+    (push-mark (treesit-node-end
+                (treesit-node-child node-for-mark 1)) nil t)
+    (goto-char (treesit-node-start
+                (treesit-node-child
+                 node-for-mark (-1 (treesit-node-child-count node-for-mark)))))
+    (ts-hopper-mode -1)))
+
 
 (defun ts-hopper-kill-node ()
   "Kill current active node."
@@ -229,7 +248,6 @@ This function is called hook `ts-hope--after-hoped'."
   "Find editable statement from NODE.
 EDITABLE-TYPES is a list of editable types.
 START-POS is a position to start from."
-  (message "NODE: %s" node)
   (let ((node-type (treesit-node-type node))
         (real-start-pos (or start-pos (treesit-node-start node)))
         (child-node (treesit-node-child node 0))
@@ -245,13 +263,6 @@ START-POS is a position to start from."
            (ts-hopper--find-editable-statement next-sibling editable-types real-start-pos))
           ((and next-parent-sibling (<= real-start-pos (treesit-node-start next-parent-sibling)))
            (ts-hopper--find-editable-statement next-parent-sibling editable-types real-start-pos))
-
-          ;; (((let ((parent-with-next-sibling
-          ;;          (treesit-parent-until node (lambda (node)
-          ;;                                       (treesit-node-next-sibling node)))))
-          ;;     (if (and parent-with-next-sibling)
-          ;;         (ts-hopper--find-editable-statement (treesit-node-next-sibling parent-with-next-sibling) editable-types real-start-pos)
-          ;;       nil))))
           (t nil))))
 
 (defun ts-hopper--remove-children (node)
@@ -303,7 +314,8 @@ START-POS is a position to start from."
     (define-key map "S" 'ts-hopper-hop-to-prev-significant)
     (define-key map "B" 'ts-hopper-hop-to-prev-statement)
     (define-key map "b" 'ts-hopper-hop-to-next-statement)
-    (define-key map "m" 'ts-hopper--mark-node)
+    (define-key map "m" 'ts-hopper--mark-node-content)
+    (define-key map "M" 'ts-hopper--mark-full-node)
     (define-key map "d" 'ts-hopper-kill-node)
     (define-key map "D" 'ts-hopper-kill-node-silently)
     (define-key map "e" 'ts-hopper--hop-edit)

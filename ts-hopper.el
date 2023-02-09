@@ -224,11 +224,11 @@ This function is called hook `ts-hope--after-hoped'."
                                                     (lambda (node)
                                                       (member (treesit-node-type node)
                                                               editable-types))))))
-    (push-mark (treesit-node-end
+    (push-mark (treesit-node-start
                 (treesit-node-child node-for-mark 1)) nil t)
     (goto-char (treesit-node-start
                 (treesit-node-child
-                 node-for-mark (-1 (treesit-node-child-count node-for-mark)))))
+                 node-for-mark (1- (treesit-node-child-count node-for-mark)))))
     (ts-hopper-mode -1)))
 
 
